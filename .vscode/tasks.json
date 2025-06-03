@@ -1,0 +1,24 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+        "label": "run",
+        "type": "shell",
+        "command": "C:/raylib/w64devkit/bin/g++.exe",
+        "args": [
+            "-std=c++23",
+            "-O3",
+            "src/main.cpp",
+            "-IC:/raylib/raylib/src",
+            "-LC:/raylib/raylib/src",
+            "-lraylib",
+            "-lopengl32",
+            "-lgdi32",
+            "-lwinmm",
+            "-o",
+            "main.exe"
+        ],
+        "problemMatcher": ["$gcc"],
+        }
+    ]
+}
