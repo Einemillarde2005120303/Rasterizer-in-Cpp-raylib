@@ -1,10 +1,7 @@
 #include <raylib.h>
-#include <cmath>
-#include <array>
-#include <algorithm>
 
 int main() {
-    InitWindow(960, 540, "RGB Triangle");
+    InitWindow(960, 540, "Rasteriser In C++ (raylib)");
     SetTargetFPS(60);
 
 

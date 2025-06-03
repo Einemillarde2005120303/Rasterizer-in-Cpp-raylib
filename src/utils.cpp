@@ -9,7 +9,7 @@ class Utils {
     public: 
         static std::vector<std::string> split_str(const std::string& str, char delimiter);
         static std::string read_file(std::string path);
-        static std::tuple<std::vector<std::array<float, 3>>, std::vector<std::array<float, 3>>, std::vector<std::array<float, 2>>, std::vector<std::array<int, 3>>> read_obj(std::string path);
+        static std::tuple<std::vector<std::array<float, 3>>, std::vector<std::array<float, 3>>, std::vector<std::array<float, 2>>, std::vector<std::array<std::array<int, 3>, 3>>> read_obj(std::string path);
 };
 
 std::string Utils::read_file(std::string path) {
@@ -36,15 +36,15 @@ std::vector<std::string> Utils::split_str(const std::string& str, char delimiter
     return result;
 }
 
-std::tuple<std::vector<std::array<float, 3>>, std::vector<std::array<float, 3>>, std::vector<std::array<float, 2>>, std::vector<std::array<int, 3>>> Utils::read_obj(std::string path) {
+std::tuple<std::vector<std::array<float, 3>>, std::vector<std::array<float, 3>>, std::vector<std::array<float, 2>>, std::vector<std::array<std::array<int, 3>, 3>>> Utils::read_obj(std::string path) {
     std::string file_str = Utils::read_file(path);
-    if (file_str.empty()) return std::tuple<std::vector<std::array<float, 3>>, std::vector<std::array<float, 3>>, std::vector<std::array<float, 2>>, std::vector<std::array<int, 3>>>{};
+    if (file_str.empty()) return std::tuple<std::vector<std::array<float, 3>>, std::vector<std::array<float, 3>>, std::vector<std::array<float, 2>>, std::vector<std::array<std::array<int, 3>, 3>>>{};
 ;
 
     std::vector<std::string> file_arr = Utils::split_str(file_str, '\n');
     std::vector<std::array<float, 3>> v, vn;
     std::vector<std::array<float, 2>> vt;
-    std::vector<std::array<int, 3>> f;
+    std::vector<std::array<std::array<int, 3>, 3>> f;
 
     for (const std::string& line : file_arr) {
         std::vector<std::string> comps = Utils::split_str(line, ' ');
@@ -56,7 +56,12 @@ std::tuple<std::vector<std::array<float, 3>>, std::vector<std::array<float, 3>>,
         } else if (comps[0] == "vt" && comps.size() >= 3) {
             vt.push_back({std::stof(comps[1]), std::stof(comps[2])});
         } else if (comps[0] == "f" && comps.size() >= 4) {
-            f.push_back({std::stoi(comps[1]), std::stoi(comps[2]), std::stoi(comps[3])});
+            std::array<std::array<int, 3>, 3> face;
+            for (int i = 0; i < 3; ++i) {
+                std::vector<std::string> vertexData = Utils::split_str(comps[i + 1], '/');
+                face[i] = {std::stoi(vertexData[0]), std::stoi(vertexData[1]), std::stoi(vertexData[2])};
+            }
+            f.push_back(face);
         }
     }
 
