@@ -464,7 +464,7 @@ int main() {
     InitWindow(Cam::screen_width, Cam::screen_height, "Rasteriser In C++ (raylib)");
     SetTargetFPS(60);
 
-    auto file_data = Utils::read_obj("assets/Monkey.obj");
+    auto file_data = Utils::read_obj("assets/Cube.obj");
     auto [v, vn, vt, f] = file_data;
     Object(v, vn, vt, f);
     Object::objects[0] = Object::objects[0].move(Point_3d(0, 0, 5));
