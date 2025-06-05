@@ -307,7 +307,7 @@ std::tuple<std::vector<Point_3d>, std::vector<Point_3d>, std::vector<Point_2d>, 
 }
 
 Point_3d Utils::ray_equation(Point_3d p, Point_3d d, float t) {
-    return p + (d * t);
+    return p + (d.normalize() * t);
 }
 
 float Utils::ray_intersects_triangle(Point_3d a, Point_3d b, Point_3d c, Point_3d p, Point_3d d) {
@@ -349,57 +349,80 @@ class Cam {
 
         inline static const float movespeed = 5 / 60.0f;
         inline static const float turnspeed = PI / 60;
-        inline static const float fov = 60;
+        inline static const float fov = 60 * (PI / 180);
         inline static const int screen_width = 160;
         inline static const int screen_height = 90;
         static std::vector<Point_3d> default_rays;
 };
 
 std::vector<Point_3d> Cam::default_rays = []() {
-    std::vector<Point_3d> array = {};
-    const float fov_increment = tan(Cam::fov / 2) * 2;
-    for (size_t i = 0; i < Cam::screen_width; ++i) {
-        for (size_t j = 0; j < Cam::screen_height; ++j) {
-            array.push_back(Point_3d((i - round(Cam::screen_width / 2)) * fov_increment, (j - round(Cam::screen_height / 2)) * fov_increment, 1));
+    std::vector<Point_3d> rays;
+    float aspect_ratio = static_cast<float>(Cam::screen_width) / Cam::screen_height;
+    float half_fov = tan(Cam::fov / 2);
+
+    for (int j = 0; j < Cam::screen_height; ++j) {
+        for (int i = 0; i < Cam::screen_width; ++i) {
+            float x = (2.0f * (i + 0.5f) / Cam::screen_width - 1) * aspect_ratio * half_fov;
+            float y = (1 - 2.0f * (j + 0.5f) / Cam::screen_height) * half_fov;
+            rays.push_back(Point_3d(x, y, 1).normalize());
         }
     }
-    return array;
+    return rays;
 }();
 
 std::vector<Point_3d> calc_rays() {
-    const Point_3d ihat = Point_3d(sin(Cam::roth + (PI / 2)), cos(Cam::roth + (PI / 2)), 0);
-    const Point_3d jhat = Point_3d(sin(Cam::roth) * cos(Cam::rotv + (PI / 2)), cos(Cam::roth) * cos(Cam::rotv + (PI / 2)), sin(Cam::rotv + (PI / 2)));
-    const Point_3d khat = Point_3d(sin(Cam::roth) * cos(Cam::rotv), cos(Cam::roth) * cos(Cam::rotv), sin(Cam::rotv));
+    const Point_3d forward = Point_3d(
+        sin(Cam::roth) * cos(Cam::rotv),
+        sin(Cam::rotv),
+        cos(Cam::roth) * cos(Cam::rotv)
+    );
+    const Point_3d right = Point_3d(
+        sin(Cam::roth + (PI / 2)),
+        0,
+        cos(Cam::roth + (PI / 2))
+    );
+    const Point_3d up = Point_3d(
+        sin(Cam::roth) * cos(Cam::rotv + (PI / 2)),
+        sin(Cam::rotv + (PI / 2)),
+        cos(Cam::roth) * cos(Cam::rotv + (PI / 2))
+    );
 
-    std::vector<Point_3d> rays(Cam::screen_width * Cam::screen_height);
-
-    std::transform(Cam::default_rays.begin(), Cam::default_rays.end(), rays.begin(), [ihat, jhat, khat](Point_3d v) {
-        return Point_3d(
-            v.dot(Point_3d(ihat.x, jhat.x, khat.x)),
-            v.dot(Point_3d(ihat.y, jhat.y, khat.y)),
-            v.dot(Point_3d(ihat.z, jhat.z, khat.z))
-        );
-    });
+    std::vector<Point_3d> rays;
+    for (const Point_3d& ray : Cam::default_rays) {
+        Point_3d transformed_ray = right * ray.x + up * ray.y + forward * ray.z;
+        rays.push_back(transformed_ray);
+    }
 
     return rays;
 }
 
 // Temporary (thanks ChatGPT)
-std::vector<Color> generateRandomColors() {
+std::vector<Color> rand_colors() {
+    std::vector<Color> colors;
     std::random_device rd;
     std::mt19937 gen(rd());
     std::uniform_int_distribution<int> dist(0, 255);
 
-    std::vector<Color> colors;
     for (const Object& obj : Object::objects) {
         for (const auto& face : obj.f) {
-            Color randomColor = {
-            static_cast<unsigned char>(dist(gen)), 
-            static_cast<unsigned char>(dist(gen)), 
-            static_cast<unsigned char>(dist(gen)), 
-            255
-        };
-        colors.push_back(randomColor);
+            unsigned char r = static_cast<unsigned char>(dist(gen));
+            unsigned char g = static_cast<unsigned char>(dist(gen));
+            unsigned char b = static_cast<unsigned char>(dist(gen));
+
+            unsigned char max_component = std::max({r, g, b});
+
+            if (max_component == 0) {
+                colors.push_back({255, 255, 255, 255});
+                continue;
+            }
+
+            float scale = 255.0f / max_component;
+            colors.push_back({
+                static_cast<unsigned char>(r * scale),
+                static_cast<unsigned char>(g * scale),
+                static_cast<unsigned char>(b * scale),
+                255
+            });
         }
     }
     return colors;
@@ -409,32 +432,31 @@ void draw_world(std::vector<Color> colors) {
     std::vector<Point_3d> dirs = calc_rays();
     Point_3d p = Point_3d(Cam::x, Cam::y, Cam::z);
 
-    for (const Point_3d& d : dirs) {
-        std::vector<float> dists;
-        int idx = &d - &dirs[0];
-        Point_2d screen_pos = Point_2d(idx % Cam::screen_width, idx / Cam::screen_width);
+    for (int i = 0; i < dirs.size(); ++i) {
+        Point_3d d = dirs[i];
+        Point_2d screen_pos = Point_2d(i % Cam::screen_width, i / Cam::screen_width);
 
-        int face_idx = -1;
+        int closest_face_idx = -1;
+        float min_dist = INFINITY;
 
         for (const Object& obj : Object::objects) {
             std::vector<Point_3d> v = obj.get_v();
 
-            for (const std::array<std::array<int, 3>, 3>& face : obj.f) {
-                face_idx = &face - &obj.f[0];
+            for (int j = 0; j < obj.f.size(); ++j) {
+                const auto& face = obj.f[j];
                 Point_3d a = v[face[0][0]];
                 Point_3d b = v[face[1][0]];
                 Point_3d c = v[face[2][0]];
                 float dist = Utils::ray_intersects_triangle(a, b, c, p, d);
-                if (dist > 0) {
-                    dists.push_back(dist);
+                if (dist > 0 && dist < min_dist) {
+                    min_dist = dist;
+                    closest_face_idx = j;
                 }
+
             }
         }
 
-        if (!dists.empty()) {
-            float min_dist = *std::min_element(dists.begin(), dists.end());
-            DrawPixel(screen_pos.x, screen_pos.y, colors[face_idx]);
-        }
+        if (closest_face_idx != -1) DrawPixel(screen_pos.x, screen_pos.y, colors[closest_face_idx]);
     }
 }
 
@@ -447,7 +469,7 @@ int main() {
     Object(v, vn, vt, f);
     Object::objects[0] = Object::objects[0].move(Point_3d(0, 0, 5));
 
-    std::vector<Color> colors = generateRandomColors();
+    std::vector<Color> colors = rand_colors();
 
     while (!WindowShouldClose()) {
         // Update
@@ -463,9 +485,9 @@ int main() {
         float coshp90 = cos(Cam::roth + PI / 2);
 
         Cam::x += (IsKeyDown(KEY_W) - IsKeyDown(KEY_S)) * Cam::movespeed * sinh * deltaTime;
-        Cam::x += (IsKeyDown(KEY_A) - IsKeyDown(KEY_D)) * Cam::movespeed * sinhp90 * deltaTime;
+        Cam::x += (IsKeyDown(KEY_D) - IsKeyDown(KEY_A)) * Cam::movespeed * sinhp90 * deltaTime;
         Cam::z += (IsKeyDown(KEY_W) - IsKeyDown(KEY_S)) * Cam::movespeed * cosh * deltaTime;
-        Cam::z += (IsKeyDown(KEY_A) - IsKeyDown(KEY_D)) * Cam::movespeed * coshp90 * deltaTime;
+        Cam::z += (IsKeyDown(KEY_D) - IsKeyDown(KEY_A)) * Cam::movespeed * coshp90 * deltaTime;
 
         Cam::y += (IsKeyDown(KEY_Q) - IsKeyDown(KEY_E)) * Cam::movespeed * deltaTime;
 
