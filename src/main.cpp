@@ -347,7 +347,7 @@ class Cam {
         inline static float roth = 0;
         inline static float rotv = 0;
 
-        inline static const float movespeed = 5 / 60.0f;
+        inline static const float movespeed = 8 / 60.0f;
         inline static const float turnspeed = PI / 60;
         inline static const float fov = 60 * (PI / 180);
         inline static const int screen_width = 160;
@@ -464,7 +464,7 @@ int main() {
     InitWindow(Cam::screen_width, Cam::screen_height, "Rasteriser In C++ (raylib)");
     SetTargetFPS(60);
 
-    auto file_data = Utils::read_obj("assets/Cube.obj");
+    auto file_data = Utils::read_obj("assets/Monkey.obj");
     auto [v, vn, vt, f] = file_data;
     Object(v, vn, vt, f);
     Object::objects[0] = Object::objects[0].move(Point_3d(0, 0, 5));
@@ -491,16 +491,11 @@ int main() {
 
         Cam::y += (IsKeyDown(KEY_Q) - IsKeyDown(KEY_E)) * Cam::movespeed * deltaTime;
 
+        std::cout << GetFPS() << " FPS" << "\n";
+
         // Draw
         BeginDrawing();
         ClearBackground(BLACK);
-
-        // DrawText(TextFormat("Cam X: %.2f", Cam::x), 10, 10, 20, WHITE);
-        // DrawText(TextFormat("Cam Y: %.2f", Cam::y), 10, 35, 20, WHITE);
-        // DrawText(TextFormat("Cam Z: %.2f", Cam::z), 10, 60, 20, WHITE);
-        // DrawText(TextFormat("Cam Roth: %.0f", fmod(Cam::roth * (180 / PI), 360)), 10, 85, 20, WHITE);
-        // DrawText(TextFormat("Cam Rotv: %.0f", Cam::rotv * (180 / PI)), 10, 110, 20, WHITE);
-        // DrawText(TextFormat("FPS: %d", GetFPS()), 875, 10, 20, WHITE);
 
         draw_world(colors);
 
