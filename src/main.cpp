@@ -8,74 +8,236 @@
 #include <cmath>
 #include <algorithm>
 
-#define M_PI 3.14159265358979323846
+#define M_PI 3.14159265358979323846f
 
 class Point_2d {
     public:
-    float x, y;
+        float x, y;
 
-    Point_2d(float x = 0, float y = 0) {
-        this->x = x;
-        this->y = y;
-    }
+        Point_2d(float x = 0, float y = 0) {
+            this->x = x;
+            this->y = y;
+        }
 };
 
 class Point_3d {
     public:
-    float x, y, z;
+        float x, y, z;
 
-    Point_3d(float x = 0, float y = 0, float z = 0) {
-        this->x = x;
-        this->y = y;
-        this->z = z;
-    }
-
-    Point_3d operator+(const Point_3d& other) const {
-        return Point_3d(x + other.x, y + other.y, z + other.z);
-    }
-
-    Point_3d operator-(const Point_3d& other) const {
-        return Point_3d(x - other.x, y - other.y, z - other.z);
-    }
-
-    Point_3d operator*(float scalar) const {
-        return Point_3d(x * scalar, y * scalar, z * scalar);
-    }
-
-    Point_3d cross(const Point_3d& other) const {
-        return Point_3d(y * other.z - z * other.y, z * other.x - x * other.z, x * other.y - y * other.x);
-    }
-
-    Point_3d operator/(float scalar) const {
-        if (scalar == 0) {
-            throw std::runtime_error("Division by zero error.");
+        Point_3d(float x = 0, float y = 0, float z = 0) {
+            this->x = x;
+            this->y = y;
+            this->z = z;
         }
-        return Point_3d(x / scalar, y / scalar, z / scalar);
-    }
 
-    float length() const {
-        return sqrt(x * x + y * y + z * z);
-    }
-
-    Point_3d normalize() const {
-        float len = this->length();
-        if (len == 0) {
-            throw std::runtime_error("Cannot normalize a zero-length vector.");
+        Point_3d operator+(const Point_3d& other) const {
+            return Point_3d(x + other.x, y + other.y, z + other.z);
         }
-        return Point_3d(x / len, y / len, z / len);
-    }
 
-    float dot(const Point_3d& other) const {
-        return x * other.x + y * other.y + z * other.z;
-    }
+        Point_3d operator-(const Point_3d& other) const {
+            return Point_3d(x - other.x, y - other.y, z - other.z);
+        }
 
-    bool operator==(const Point_3d& other) const {
-        return abs(x - other.x) < 0.00001f && abs(y - other.y) < 0.00001f && abs(z - other.z) < 0.00001f;
-    }
+        Point_3d operator*(float scalar) const {
+            return Point_3d(x * scalar, y * scalar, z * scalar);
+        }
 
-    bool operator!=(const Point_3d& other) const {
-        return !(*this == other);
-    }
+        Point_3d cross(const Point_3d& other) const {
+            return Point_3d(
+                y * other.z - z * other.y,
+                z * other.x - x * other.z,
+                x * other.y - y * other.x
+            );
+        }
+
+        Point_3d operator/(float scalar) const {
+            if (scalar == 0) {
+                throw std::runtime_error("Division by zero error.");
+            }
+            return Point_3d(x / scalar, y / scalar, z / scalar);
+        }
+
+        float length() const {
+            return sqrt(x * x + y * y + z * z);
+        }
+
+        Point_3d normalize() const {
+            float len = this->length();
+            if (len == 0) {
+                throw std::runtime_error("Cannot normalize a zero-length vector.");
+            }
+            return *this / len;
+        }
+
+        float dot(const Point_3d& other) const {
+            return x * other.x + y * other.y + z * other.z;
+        }
+
+        bool operator==(const Point_3d& other) const {
+            return abs(x - other.x) <= 1e-6 && abs(y - other.y) <= 1e-6 && abs(z - other.z) <= 1e-6;
+        }
+
+        bool operator!=(const Point_3d& other) const {
+            return !(*this == other);
+        }
+};
+
+class Object {
+    public:
+        static std::vector<Object> objects;
+
+        std::vector<Point_3d> v, vn;
+        std::vector<Point_2d> vt;
+        std::vector<std::array<std::array<int, 3>, 3>> f;
+        Point_3d ihat, jhat, khat, origin;
+
+        Object(std::vector<Point_3d> v = std::vector<Point_3d>{}, std::vector<Point_3d> vn = std::vector<Point_3d>{}, std::vector<Point_2d> vt = std::vector<Point_2d>{}, std::vector<std::array<std::array<int, 3>, 3>> f = std::vector<std::array<std::array<int, 3>, 3>>{}) {
+            this->v = v;
+            this->vn = vn;
+            this->vt = vt;
+            this->f = f;
+            this->origin = Point_3d();
+            this->ihat = Point_3d(1, 0, 0);
+            this->jhat = Point_3d(0, 1, 0);
+            this->khat = Point_3d(0, 0, 1);
+            objects.push_back(*this);
+        }
+
+        Object move(Point_3d p) {
+            Object obj = *this;
+            obj.origin = p;
+            return obj;
+        }
+
+        Object rotate(float angle, char axis1, char axis2) const {
+            Object obj = *this;
+            if (axis1 == 'x' && axis2 == 'y' || axis1 == 'y' && axis2 == 'x') {
+                obj.ihat = Point_3d(
+                    ihat.x * cos(angle) - ihat.y * sin(angle),
+                    ihat.x * sin(angle) + ihat.y * cos(angle),
+                    ihat.z
+                );
+                obj.jhat = Point_3d(
+                    jhat.x * cos(angle) - jhat.y * sin(angle),
+                    jhat.x * sin(angle) + jhat.y * cos(angle),
+                    jhat.z
+                );
+            } else if (axis1 == 'y' && axis2 == 'z' || axis1 == 'z' && axis2 == 'y') {
+                obj.jhat = Point_3d(
+                    jhat.x,
+                    jhat.y * cos(angle) - jhat.z * sin(angle),
+                    jhat.y * sin(angle) + jhat.z * cos(angle)
+                );
+                obj.khat = Point_3d(
+                    khat.x,
+                    khat.y * cos(angle) - khat.z * sin(angle),
+                    khat.y * sin(angle) + khat.z * cos(angle)
+                );
+            } else if (axis1 == 'x' && axis2 == 'z' || axis1 == 'z' && axis2 == 'x') {
+                obj.ihat = Point_3d(
+                    ihat.x,
+                    ihat.y * cos(angle) - ihat.z * sin(angle),
+                    ihat.y * sin(angle) + ihat.z * cos(angle)
+                );
+                obj.khat = Point_3d(
+                    khat.x,
+                    khat.y * cos(angle) - khat.z * sin(angle),
+                    khat.y * sin(angle) + khat.z * cos(angle)
+                );
+            } else {
+                throw std::invalid_argument("Invalid axes for rotation. Use 'x', 'y', or 'z'.");
+            }
+        }
+
+        Object scale(float scalar, char axis) const {
+            Object obj = *this;
+            if (axis == 'x') {
+                obj.ihat = Point_3d(ihat.x * scalar, ihat.y * scalar, ihat.z * scalar);
+            } else if (axis == 'y') {
+                obj.jhat = Point_3d(jhat.x * scalar, jhat.y * scalar, jhat.z * scalar);
+            } else if (axis == 'z') {
+                obj.khat = Point_3d(khat.x * scalar, khat.y * scalar, khat.z * scalar);
+            } else {
+                throw std::invalid_argument("Invalid axis for scaling. Use 'x', 'y', or 'z'.");
+            }
+            return obj;
+        }
+
+        Object shear(float shear_factor, char axis1, char axis2) const {
+            Object obj = *this;
+            if (axis1 == 'x' && axis2 == 'y' || axis1 == 'y' && axis2 == 'x') {
+                obj.ihat = Point_3d(
+                    ihat.x + shear_factor * jhat.x,
+                    ihat.y + shear_factor * jhat.y,
+                    ihat.z + shear_factor * jhat.z
+                );
+                obj.jhat = Point_3d(
+                    jhat.x + shear_factor * ihat.x,
+                    jhat.y + shear_factor * ihat.y,
+                    jhat.z + shear_factor * ihat.z
+                );
+            } else if (axis1 == 'y' && axis2 == 'z' || axis1 == 'z' && axis2 == 'y') {
+                obj.jhat = Point_3d(
+                    jhat.x + shear_factor * khat.x,
+                    jhat.y + shear_factor * khat.y,
+                    jhat.z + shear_factor * khat.z
+                );
+                obj.khat = Point_3d(
+                    khat.x + shear_factor * jhat.x,
+                    khat.y + shear_factor * jhat.y,
+                    khat.z + shear_factor * jhat.z
+                );
+            } else if (axis1 == 'x' && axis2 == 'z' || axis1 == 'z' && axis2 == 'x') {
+                obj.ihat = Point_3d(
+                    ihat.x + shear_factor * khat.x,
+                    ihat.y + shear_factor * khat.y,
+                    ihat.z + shear_factor * khat.z
+                );
+                obj.khat = Point_3d(
+                    khat.x + shear_factor * ihat.x,
+                    khat.y + shear_factor * ihat.y,
+                    khat.z + shear_factor * ihat.z
+                );
+            } else {
+                throw std::invalid_argument("Invalid axes for shearing. Use 'x', 'y', or 'z'.");
+            }
+            return obj;
+        }
+
+        std::vector<Point_3d> get_v() const {
+            std::vector<Point_3d> vertices;
+            for (const auto& vertex : v) {
+                vertices.push_back(Point_3d(
+                    origin.x + vertex.dot(Point_3d(ihat.x, jhat.x, khat.x)),
+                    origin.y + vertex.dot(Point_3d(ihat.y, jhat.y, khat.y)),
+                    origin.z + vertex.dot(Point_3d(ihat.z, jhat.z, khat.z))
+                ));
+            }
+            return vertices;
+        }
+
+        std::vector<Point_3d> get_vn() const {
+            std::vector<Point_3d> normals;
+            for (const auto& normal : vn) {
+                normals.push_back(Point_3d(
+                    normal.dot(Point_3d(ihat.x, jhat.x, khat.x)),
+                    normal.dot(Point_3d(ihat.y, jhat.y, khat.y)),
+                    normal.dot(Point_3d(ihat.z, jhat.z, khat.z))
+                ));
+            }
+            return normals;
+        }
+
+        std::vector<Point_2d> get_vt() const {
+            std::vector<Point_2d> texture_coords;
+            for (const auto& coord : vt) {
+                texture_coords.push_back(Point_2d(
+                    coord.x * ihat.x + coord.y * jhat.x,
+                    coord.x * ihat.y + coord.y * jhat.y
+                ));
+            }
+            return texture_coords;
+        }
 };
 
 class Utils {
@@ -90,8 +252,7 @@ class Utils {
 std::string Utils::read_file(std::string path) {
     std::ifstream file(path);
     if (!file) {
-        std::cerr << "Error opening file: \"" << path << "\"\n";
-        return "";
+        throw std::runtime_error("Could not open file: \"" + path + "\"");
     }
 
     std::stringstream buffer;
@@ -111,7 +272,7 @@ std::vector<std::string> Utils::split_str(const std::string& str, char delimiter
     return result;
 }
 
-// Foolproof this read_obj function (idk how tho)#
+// Foolproof this read_obj function (idk how tho)
 // MrurBo, if you're reading this, HELP.
 std::tuple<std::vector<std::array<float, 3>>, std::vector<std::array<float, 3>>, std::vector<std::array<float, 2>>, std::vector<std::array<std::array<int, 3>, 3>>> Utils::read_obj(std::string path) {
     std::string file_str = Utils::read_file(path);
@@ -179,18 +340,18 @@ float Utils::ray_intersects_triangle(Point_3d a, Point_3d b, Point_3d c, Point_3
 
 class Cam {
     public:
-    inline static float x = 0;
-    inline static float y = 0;
-    inline static float z = 0;
-    inline static float roth = 0;
-    inline static float rotv = 0;
+        inline static float x = 0;
+        inline static float y = 0;
+        inline static float z = 0;
+        inline static float roth = 0;
+        inline static float rotv = 0;
 
-    inline static const float movespeed = 2;
-    inline static const float turnspeed = 2;
-    inline static const float fov = 60;
-    inline static const int screen_width = 960;
-    inline static const int screen_height = 540;
-    static std::vector<Point_3d> default_rays;
+        inline static const float movespeed = 8 / 60.0f;
+        inline static const float turnspeed = M_PI / 30;
+        inline static const float fov = 60;
+        inline static const int screen_width = 960;
+        inline static const int screen_height = 540;
+        static std::vector<Point_3d> default_rays;
 };
 
 std::vector<Point_3d> Cam::default_rays = []() {
@@ -226,14 +387,36 @@ int main() {
     InitWindow(Cam::screen_width, Cam::screen_height, "Rasteriser In C++ (raylib)");
     SetTargetFPS(60);
 
-
     while (!WindowShouldClose()) {
         // Update
+        float deltaTime = GetFrameTime() * 60;
 
+        Cam::roth += (IsKeyDown(KEY_RIGHT) - IsKeyDown(KEY_LEFT)) * Cam::turnspeed * deltaTime;
+        Cam::rotv += (IsKeyDown(KEY_UP) - IsKeyDown(KEY_DOWN)) * Cam::turnspeed * deltaTime;
+        Cam::rotv = std::clamp(Cam::rotv, -PI / 2.0f, PI / 2.0f);
+
+        float sinh = sin(Cam::roth);
+        float cosh = cos(Cam::roth);
+        float sinhp90 = sin(Cam::roth + M_PI / 2);
+        float coshp90 = cos(Cam::roth + M_PI / 2);
+
+        Cam::x += (IsKeyDown(KEY_W) - IsKeyDown(KEY_S)) * Cam::movespeed * sinh * deltaTime;
+        Cam::x += (IsKeyDown(KEY_A) - IsKeyDown(KEY_D)) * Cam::movespeed * sinhp90 * deltaTime;
+        Cam::z += (IsKeyDown(KEY_W) - IsKeyDown(KEY_S)) * Cam::movespeed * cosh * deltaTime;
+        Cam::z += (IsKeyDown(KEY_A) - IsKeyDown(KEY_D)) * Cam::movespeed * coshp90 * deltaTime;
+
+        Cam::y += (IsKeyDown(KEY_Q) - IsKeyDown(KEY_E)) * Cam::movespeed * deltaTime;
 
         // Draw
         BeginDrawing();
         ClearBackground(BLACK);
+
+        DrawText(TextFormat("Cam X: %.2f", Cam::x), 10, 10, 20, WHITE);
+        DrawText(TextFormat("Cam Y: %.2f", Cam::y), 10, 35, 20, WHITE);
+        DrawText(TextFormat("Cam Z: %.2f", Cam::z), 10, 60, 20, WHITE);
+        DrawText(TextFormat("Cam Roth: %.0f", fmod(Cam::roth * (180 / M_PI), 360)), 10, 85, 20, WHITE);
+        DrawText(TextFormat("Cam Rotv: %.0f", Cam::rotv * (180 / M_PI)), 10, 110, 20, WHITE);
+        DrawText(TextFormat("FPS: %d", GetFPS()), 875, 10, 20, WHITE);
 
         EndDrawing();
     }
