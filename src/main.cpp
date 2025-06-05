@@ -350,8 +350,8 @@ class Cam {
         inline static const float movespeed = 8 / 60.0f;
         inline static const float turnspeed = PI / 60;
         inline static const float fov = 60 * (PI / 180);
-        inline static const int screen_width = 160;
-        inline static const int screen_height = 90;
+        inline static const int screen_width = 192;
+        inline static const int screen_height = 108;
         static std::vector<Point_3d> default_rays;
 };
 
@@ -491,7 +491,6 @@ int main() {
 
         Cam::y += (IsKeyDown(KEY_Q) - IsKeyDown(KEY_E)) * Cam::movespeed * deltaTime;
 
-        std::cout << GetFPS() << " FPS" << "\n";
 
         // Draw
         BeginDrawing();
