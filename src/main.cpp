@@ -7,8 +7,9 @@
 #include <tuple>
 #include <cmath>
 #include <algorithm>
+#include <random>
 
-#define M_PI 3.14159265358979323846f
+#define PI 3.14159265358979323846f
 
 class Point_2d {
     public:
@@ -64,7 +65,7 @@ class Point_3d {
         Point_3d normalize() const {
             float len = this->length();
             if (len == 0) {
-                throw std::runtime_error("Cannot normalize a zero-length vector.");
+                return Point_3d(0, 0, 0);
             }
             return *this / len;
         }
@@ -84,7 +85,7 @@ class Point_3d {
 
 class Object {
     public:
-        static std::vector<Object> objects;
+        inline static std::vector<Object> objects = std::vector<Object>{};
 
         std::vector<Point_3d> v, vn;
         std::vector<Point_2d> vt;
@@ -206,7 +207,7 @@ class Object {
 
         std::vector<Point_3d> get_v() const {
             std::vector<Point_3d> vertices;
-            for (const auto& vertex : v) {
+            for (const Point_3d& vertex : v) {
                 vertices.push_back(Point_3d(
                     origin.x + vertex.dot(Point_3d(ihat.x, jhat.x, khat.x)),
                     origin.y + vertex.dot(Point_3d(ihat.y, jhat.y, khat.y)),
@@ -218,7 +219,7 @@ class Object {
 
         std::vector<Point_3d> get_vn() const {
             std::vector<Point_3d> normals;
-            for (const auto& normal : vn) {
+            for (const Point_3d& normal : vn) {
                 normals.push_back(Point_3d(
                     normal.dot(Point_3d(ihat.x, jhat.x, khat.x)),
                     normal.dot(Point_3d(ihat.y, jhat.y, khat.y)),
@@ -230,7 +231,7 @@ class Object {
 
         std::vector<Point_2d> get_vt() const {
             std::vector<Point_2d> texture_coords;
-            for (const auto& coord : vt) {
+            for (const Point_2d& coord : vt) {
                 texture_coords.push_back(Point_2d(
                     coord.x * ihat.x + coord.y * jhat.x,
                     coord.x * ihat.y + coord.y * jhat.y
@@ -244,7 +245,7 @@ class Utils {
     public: 
         static std::vector<std::string> split_str(const std::string& str, char delimiter);
         static std::string read_file(std::string path);
-        static std::tuple<std::vector<std::array<float, 3>>, std::vector<std::array<float, 3>>, std::vector<std::array<float, 2>>, std::vector<std::array<std::array<int, 3>, 3>>> read_obj(std::string path);
+        static std::tuple<std::vector<Point_3d>, std::vector<Point_3d>, std::vector<Point_2d>, std::vector<std::array<std::array<int, 3>, 3>>> read_obj(std::string path);
         static Point_3d ray_equation(Point_3d p, Point_3d d, float t);
         static float ray_intersects_triangle(Point_3d a, Point_3d b, Point_3d c, Point_3d p, Point_3d d);
 };
@@ -274,29 +275,29 @@ std::vector<std::string> Utils::split_str(const std::string& str, char delimiter
 
 // Foolproof this read_obj function (idk how tho)
 // MrurBo, if you're reading this, HELP.
-std::tuple<std::vector<std::array<float, 3>>, std::vector<std::array<float, 3>>, std::vector<std::array<float, 2>>, std::vector<std::array<std::array<int, 3>, 3>>> Utils::read_obj(std::string path) {
+std::tuple<std::vector<Point_3d>, std::vector<Point_3d>, std::vector<Point_2d>, std::vector<std::array<std::array<int, 3>, 3>>> Utils::read_obj(std::string path) {
     std::string file_str = Utils::read_file(path);
-    if (file_str.empty()) return std::tuple<std::vector<std::array<float, 3>>, std::vector<std::array<float, 3>>, std::vector<std::array<float, 2>>, std::vector<std::array<std::array<int, 3>, 3>>>{};
+    if (file_str.empty()) return std::tuple<std::vector<Point_3d>, std::vector<Point_3d>, std::vector<Point_2d>, std::vector<std::array<std::array<int, 3>, 3>>>{};
 
     std::vector<std::string> file_arr = Utils::split_str(file_str, '\n');
-    std::vector<std::array<float, 3>> v, vn;
-    std::vector<std::array<float, 2>> vt;
+    std::vector<Point_3d> v, vn;
+    std::vector<Point_2d> vt;
     std::vector<std::array<std::array<int, 3>, 3>> f;
 
     for (const std::string& line : file_arr) {
         std::vector<std::string> comps = Utils::split_str(line, ' ');
 
         if (comps[0] == "v" && comps.size() >= 4) {
-            v.push_back({std::stof(comps[1]), std::stof(comps[2]), std::stof(comps[3])});
+            v.push_back(Point_3d(std::stof(comps[1]), std::stof(comps[2]), std::stof(comps[3])));
         } else if (comps[0] == "vn" && comps.size() >= 4) {
-            vn.push_back({std::stof(comps[1]), std::stof(comps[2]), std::stof(comps[3])});
+            vn.push_back(Point_3d(std::stof(comps[1]), std::stof(comps[2]), std::stof(comps[3])));
         } else if (comps[0] == "vt" && comps.size() >= 3) {
-            vt.push_back({std::stof(comps[1]), std::stof(comps[2])});
+            vt.push_back(Point_2d(std::stof(comps[1]), std::stof(comps[2])));
         } else if (comps[0] == "f" && comps.size() >= 4) {
             std::array<std::array<int, 3>, 3> face;
             for (int i = 0; i < 3; ++i) {
                 std::vector<std::string> vertexData = Utils::split_str(comps[i + 1], '/');
-                face[i] = {std::stoi(vertexData[0]), std::stoi(vertexData[1]), std::stoi(vertexData[2])};
+                face[i] = {std::stoi(vertexData[0]) - 1, std::stoi(vertexData[1]) - 1, std::stoi(vertexData[2]) - 1};
             }
             f.push_back(face);
         }
@@ -346,11 +347,11 @@ class Cam {
         inline static float roth = 0;
         inline static float rotv = 0;
 
-        inline static const float movespeed = 8 / 60.0f;
-        inline static const float turnspeed = M_PI / 30;
+        inline static const float movespeed = 5 / 60.0f;
+        inline static const float turnspeed = PI / 60;
         inline static const float fov = 60;
-        inline static const int screen_width = 960;
-        inline static const int screen_height = 540;
+        inline static const int screen_width = 160;
+        inline static const int screen_height = 90;
         static std::vector<Point_3d> default_rays;
 };
 
@@ -366,8 +367,8 @@ std::vector<Point_3d> Cam::default_rays = []() {
 }();
 
 std::vector<Point_3d> calc_rays() {
-    const Point_3d ihat = Point_3d(sin(Cam::roth + (M_PI / 2)), cos(Cam::roth + (M_PI / 2)), 0);
-    const Point_3d jhat = Point_3d(sin(Cam::roth) * cos(Cam::rotv + (M_PI / 2)), cos(Cam::roth) * cos(Cam::rotv + (M_PI / 2)), sin(Cam::rotv + (M_PI / 2)));
+    const Point_3d ihat = Point_3d(sin(Cam::roth + (PI / 2)), cos(Cam::roth + (PI / 2)), 0);
+    const Point_3d jhat = Point_3d(sin(Cam::roth) * cos(Cam::rotv + (PI / 2)), cos(Cam::roth) * cos(Cam::rotv + (PI / 2)), sin(Cam::rotv + (PI / 2)));
     const Point_3d khat = Point_3d(sin(Cam::roth) * cos(Cam::rotv), cos(Cam::roth) * cos(Cam::rotv), sin(Cam::rotv));
 
     std::vector<Point_3d> rays(Cam::screen_width * Cam::screen_height);
@@ -383,9 +384,70 @@ std::vector<Point_3d> calc_rays() {
     return rays;
 }
 
+// Temporary (thanks ChatGPT)
+std::vector<Color> generateRandomColors() {
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<int> dist(0, 255);
+
+    std::vector<Color> colors;
+    for (const Object& obj : Object::objects) {
+        for (const auto& face : obj.f) {
+            Color randomColor = {
+            static_cast<unsigned char>(dist(gen)), 
+            static_cast<unsigned char>(dist(gen)), 
+            static_cast<unsigned char>(dist(gen)), 
+            255
+        };
+        colors.push_back(randomColor);
+        }
+    }
+    return colors;
+}
+
+void draw_world(std::vector<Color> colors) {
+    std::vector<Point_3d> dirs = calc_rays();
+    Point_3d p = Point_3d(Cam::x, Cam::y, Cam::z);
+
+    for (const Point_3d& d : dirs) {
+        std::vector<float> dists;
+        int idx = &d - &dirs[0];
+        Point_2d screen_pos = Point_2d(idx % Cam::screen_width, idx / Cam::screen_width);
+
+        int face_idx = -1;
+
+        for (const Object& obj : Object::objects) {
+            std::vector<Point_3d> v = obj.get_v();
+
+            for (const std::array<std::array<int, 3>, 3>& face : obj.f) {
+                face_idx = &face - &obj.f[0];
+                Point_3d a = v[face[0][0]];
+                Point_3d b = v[face[1][0]];
+                Point_3d c = v[face[2][0]];
+                float dist = Utils::ray_intersects_triangle(a, b, c, p, d);
+                if (dist > 0) {
+                    dists.push_back(dist);
+                }
+            }
+        }
+
+        if (!dists.empty()) {
+            float min_dist = *std::min_element(dists.begin(), dists.end());
+            DrawPixel(screen_pos.x, screen_pos.y, colors[face_idx]);
+        }
+    }
+}
+
 int main() {
     InitWindow(Cam::screen_width, Cam::screen_height, "Rasteriser In C++ (raylib)");
     SetTargetFPS(60);
+
+    auto file_data = Utils::read_obj("assets/Cube.obj");
+    auto [v, vn, vt, f] = file_data;
+    Object(v, vn, vt, f);
+    Object::objects[0] = Object::objects[0].move(Point_3d(0, 0, 5));
+
+    std::vector<Color> colors = generateRandomColors();
 
     while (!WindowShouldClose()) {
         // Update
@@ -393,12 +455,12 @@ int main() {
 
         Cam::roth += (IsKeyDown(KEY_RIGHT) - IsKeyDown(KEY_LEFT)) * Cam::turnspeed * deltaTime;
         Cam::rotv += (IsKeyDown(KEY_UP) - IsKeyDown(KEY_DOWN)) * Cam::turnspeed * deltaTime;
-        Cam::rotv = std::clamp(Cam::rotv, -PI / 2.0f, PI / 2.0f);
+        Cam::rotv = std::clamp(Cam::rotv, -PI / 2, PI / 2);
 
         float sinh = sin(Cam::roth);
         float cosh = cos(Cam::roth);
-        float sinhp90 = sin(Cam::roth + M_PI / 2);
-        float coshp90 = cos(Cam::roth + M_PI / 2);
+        float sinhp90 = sin(Cam::roth + PI / 2);
+        float coshp90 = cos(Cam::roth + PI / 2);
 
         Cam::x += (IsKeyDown(KEY_W) - IsKeyDown(KEY_S)) * Cam::movespeed * sinh * deltaTime;
         Cam::x += (IsKeyDown(KEY_A) - IsKeyDown(KEY_D)) * Cam::movespeed * sinhp90 * deltaTime;
@@ -411,12 +473,14 @@ int main() {
         BeginDrawing();
         ClearBackground(BLACK);
 
-        DrawText(TextFormat("Cam X: %.2f", Cam::x), 10, 10, 20, WHITE);
-        DrawText(TextFormat("Cam Y: %.2f", Cam::y), 10, 35, 20, WHITE);
-        DrawText(TextFormat("Cam Z: %.2f", Cam::z), 10, 60, 20, WHITE);
-        DrawText(TextFormat("Cam Roth: %.0f", fmod(Cam::roth * (180 / M_PI), 360)), 10, 85, 20, WHITE);
-        DrawText(TextFormat("Cam Rotv: %.0f", Cam::rotv * (180 / M_PI)), 10, 110, 20, WHITE);
-        DrawText(TextFormat("FPS: %d", GetFPS()), 875, 10, 20, WHITE);
+        // DrawText(TextFormat("Cam X: %.2f", Cam::x), 10, 10, 20, WHITE);
+        // DrawText(TextFormat("Cam Y: %.2f", Cam::y), 10, 35, 20, WHITE);
+        // DrawText(TextFormat("Cam Z: %.2f", Cam::z), 10, 60, 20, WHITE);
+        // DrawText(TextFormat("Cam Roth: %.0f", fmod(Cam::roth * (180 / PI), 360)), 10, 85, 20, WHITE);
+        // DrawText(TextFormat("Cam Rotv: %.0f", Cam::rotv * (180 / PI)), 10, 110, 20, WHITE);
+        // DrawText(TextFormat("FPS: %d", GetFPS()), 875, 10, 20, WHITE);
+
+        draw_world(colors);
 
         EndDrawing();
     }
