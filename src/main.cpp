@@ -288,28 +288,25 @@ Point_3d Utils::ray_equation(Point_3d p, Point_3d d, float t) {
 }
 
 float Utils::ray_intersects_triangle(Point_3d a, Point_3d b, Point_3d c, Point_3d p, Point_3d d) {
-    d = d.normalize();
+    Point_3d e1 = b - a;
+    Point_3d e2 = c - a;
+    Point_3d h = d.cross(e2);
+    float a_dot_h = e1.dot(h);
 
-    Point_3d e1 = a - b;
-    Point_3d e2 = b - c;
-    Point_3d e3 = c - a;
+    if (std::abs(a_dot_h) < 1e-5) return -1;
+    float f = 1.0f / a_dot_h;
+    Point_3d s = p - a;
+    float u = f * s.dot(h);
+    if (u < 0.0f || u > 1.0f) return -1;
 
-    Point_3d n = e1.cross(e2);
+    Point_3d q = s.cross(e1);
+    float v = f * d.dot(q);
+    if (v < 0.0f || u + v > 1.0f) return -1;
 
-    if (std::abs(n.dot(d)) < 1e-5) return -1;
-    float dist = 0 - (n.dot(p) - n.dot(a)) / n.dot(d);
-
-    Point_3d i = Utils::ray_equation(p, d, dist);
-
-    Point_3d v0 = i - a;
-    Point_3d v1 = i - b;
-    Point_3d v2 = i - c;
-
-    Point_3d m0 = e1.cross(v0).normalize();
-    Point_3d m1 = e2.cross(v1).normalize();
-    Point_3d m2 = e3.cross(v2).normalize();
-
-    return m0 == m1 && m1 == m2 ? dist : -1;
+    float t = f * e2.dot(q);
+    if (t < 1e-5) return -1;
+    
+    return t;
 }
 
 class Cam {
@@ -323,11 +320,13 @@ class Cam {
         inline static const float movespeed = 6 / 60.0f;
         inline static const float turnspeed = PI / 45;
         inline static const float fov = 90 * (PI / 180);
-        inline static const int screen_width = 192;
-        inline static const int screen_height = 108;
+        inline static const int screen_width = 160;
+        inline static const int screen_height = 90;
+
+        inline static const Point_3d light_dir = Point_3d(-0.25, -1, -0.5);
 };
 
-std::vector<Point_3d> calc_rays() {
+std::vector<std::vector<Point_3d>> calc_rays() {
     const float aspect = static_cast<float>(Cam::screen_width) / Cam::screen_height;
 
     const Point_3d forward = Point_3d(
@@ -344,83 +343,73 @@ std::vector<Point_3d> calc_rays() {
 
     float half_fov = tan(Cam::fov / 2);
 
-    std::vector<Point_3d> rays;
-    for (int y = 0; y < Cam::screen_height; y++)
-    for (int x = 0; x < Cam::screen_width; x++) {
-        float px = (x / (Cam::screen_width / 2.0f) - 1.0f) * half_fov * aspect;
-        float py = (1.0f - y / (Cam::screen_height / 2.0f)) * half_fov;
+    std::vector<std::vector<Point_3d>> rays;
+    for (int y = 0; y < Cam::screen_height; y++) {
+        std::vector<Point_3d> row_rays;
+        for (int x = 0; x < Cam::screen_width; x++) {
+            float px = (x / (Cam::screen_width / 2.0f) - 1.0f) * half_fov * aspect;
+            float py = (1.0f - y / (Cam::screen_height / 2.0f)) * half_fov;
 
-        rays.push_back(forward + right * px + up * py);
+            row_rays.push_back(forward + right * px + up * py);
+        }
+        rays.push_back(row_rays);
     }
-
     return rays;
 }
 
-std::vector<Color> rand_colors() {
-    std::vector<Color> colors;
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_int_distribution<int> dist(0, 255);
-
-    for (const Object& obj : Object::objects) {
-        for (const auto& face : obj.f) {
-            unsigned char r = static_cast<unsigned char>(dist(gen));
-            unsigned char g = static_cast<unsigned char>(dist(gen));
-            unsigned char b = static_cast<unsigned char>(dist(gen));
-
-            colors.push_back({
-                static_cast<unsigned char>(r),
-                static_cast<unsigned char>(g),
-                static_cast<unsigned char>(b),
-                255
-            });
-        }
-    }
-    return colors;
-}
-
-void draw_world(std::vector<Color> colors) {
-    std::vector<Point_3d> dirs = calc_rays();
+void draw_world() {
+    std::vector<std::vector<Point_3d>> dirs = calc_rays();
     Point_3d p = Point_3d(Cam::x, Cam::y, Cam::z);
 
-    for (int i = 0; i < dirs.size(); i++) {
-        Point_3d d = dirs[i];
-        Point_2d screen_pos = Point_2d(i % Cam::screen_width, i / Cam::screen_width);
+    for (size_t y = 0; y < dirs.size(); y++) {
+        for (size_t x = 0; x < dirs[0].size(); x++) {
+            Point_3d d = dirs[y][x];
 
-        int closest_face_idx = -1;
-        float min_dist = INFINITY;
+            int closest_face_idx = -1;
+            Point_3d closest_face_normal;
+            float min_dist = INFINITY;
 
-        for (const Object& obj : Object::objects) {
-            std::vector<Point_3d> v = obj.get_v();
+            for (const Object& obj : Object::objects) {
+                std::vector<Point_3d> v = obj.get_v();
+                std::vector<Point_3d> vn = obj.get_vn();
 
-            for (int j = 0; j < obj.f.size(); j++) {
-                const auto& face = obj.f[j];
-                Point_3d a = v[face[0][0]];
-                Point_3d b = v[face[1][0]];
-                Point_3d c = v[face[2][0]];
-                float dist = Utils::ray_intersects_triangle(a, b, c, p, d);
-                if (dist > 0 && dist < min_dist) {
-                    min_dist = dist;
-                    closest_face_idx = j;
+                for (int i = 0; i < obj.f.size(); i++) {
+                    const auto& face = obj.f[i];
+                    Point_3d a = v[face[0][0]];
+                    Point_3d b = v[face[1][0]];
+                    Point_3d c = v[face[2][0]];
+                    float dist = Utils::ray_intersects_triangle(a, b, c, p, d);
+                    if (dist > 0 && dist < min_dist) {
+                        min_dist = dist;
+                        closest_face_idx = i;
+                        closest_face_normal = vn[face[0][2]];
+                    }
                 }
+            }
 
+            if (closest_face_idx != -1) {
+                float dot = closest_face_normal.dot(Cam::light_dir.normalize());
+                unsigned char darkness = static_cast<unsigned char>((0.75 + dot / 4) * 255);
+                Color color = {255, 255, 255, darkness};
+                DrawPixel(x, y, color);
             }
         }
-
-        if (closest_face_idx != -1) DrawPixel(screen_pos.x, screen_pos.y, colors[closest_face_idx]);
     }
 }
 
 int main() {
-    InitWindow(Cam::screen_width, Cam::screen_height, "Rasteriser In   ++(raylib)");
+    InitWindow(Cam::screen_width, Cam::screen_height, "Rasteriser In (raylib)");
     SetTargetFPS(60);
 
     auto file_data = Utils::read_obj("assets/Cube.obj");
     auto [v, vn, vt, f] = file_data;
     Object(v, vn, vt, f);
-    Object::objects[0] = Object::objects[0].move(Point_3d(0, 0, 4));
+    Object(v, vn, vt, f);
+    Object(v, vn, vt, f);
 
-    std::vector<Color> colors = rand_colors();
+    Object::objects[0] = Object::objects[0].move(Point_3d(0, 0, 4));
+    Object::objects[1] = Object::objects[0].move(Point_3d(2, 0, 3)).rotate(30 * PI / 180, 'z').rotate(30 * PI / 180, 'y');
+    Object::objects[2] = Object::objects[0].move(Point_3d(0, 0, -2)).shear(1, 'x', 'y');
 
     while (!WindowShouldClose()) {
         // Update
@@ -447,7 +436,7 @@ int main() {
         BeginDrawing();
         ClearBackground(BLACK);
 
-        draw_world(colors);
+        draw_world();
 
         EndDrawing();
     }
